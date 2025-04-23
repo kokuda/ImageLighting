@@ -22,7 +22,7 @@ A command-line application for applying directional lighting effects to images u
 
 - Apply directional lighting to any JPG or PNG image
 - Use normal maps to achieve realistic lighting effects
-- Customize light direction, color, and intensity
+- Customize light direction, color, brightness, and blend intensity
 - Simple command-line interface
 
 ## Prerequisites
@@ -48,7 +48,7 @@ A command-line application for applying directional lighting effects to images u
 Run the application with the following command:
 
 ```sh
-dotnet run -- --image <path-to-image> --normal-map <path-to-normal-map> --output <path-to-output> --light-dir <x,y,z> --light-color <r,g,b> --intensity <value>
+dotnet run -- --image <path-to-image> --normal-map <path-to-normal-map> --output <path-to-output> --light-dir <x,y,z> --light-color <r,g,b> --brightness <value> --intensity <value>
 ```
 
 ## Parameters
@@ -58,20 +58,22 @@ dotnet run -- --image <path-to-image> --normal-map <path-to-normal-map> --output
 - **--output:** Path where the output image will be saved
 - **--light-dir:** Light direction vector in format x,y,z (e.g., 0,0,1)
 - **--light-color:** Light color in RGB format r,g,b (e.g., 255,255,255)
-- **--intensity:** (Optional) Light intensity, default is 1.0
+- **--brightness:** (Optional) Light brightness, default is 1.0
+- **--intensity:** (Optional) Blend factor between original image (0.0) and lighting effect (1.0), default is 1.0
+
 
 ## Example
 
 Apply a white light coming from directly above:
 
 ```sh
-dotnet run -- --image sample.jpg --normal-map sample_normal.png --output output.jpg --light-dir 0,0,1 --light-color 255,255,255 --intensity 1.5
+dotnet run -- --image sample.jpg --normal-map sample_normal.png --output output.jpg --light-dir 0,0,1 --light-color 255,255,255 --brightness 1.5 --intensity 1.0
 ```
 
-Apply a red light from the upper left:
+Apply a red light from the upper left with partial blending:
 
 ```sh
-dotnet run -- --image sample.jpg --normal-map sample_normal.png --output output.jpg --light-dir -1,-1,0.5 --light-color 255,0,0 --intensity 2.0
+dotnet run -- --image sample.jpg --normal-map sample_normal.png --output output.jpg --light-dir -1,-1,0.5 --light-color 255,0,0 --brightness 2.0 --intensity 0.7
 ```
 
 ## Normal Maps
