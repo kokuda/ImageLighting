@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.IO;
@@ -15,42 +15,50 @@ namespace ImageLighting
         {
             // Create command line arguments
             var rootCommand = new RootCommand("Apply directional lighting to an image using a normal map");
-            
+
             var imageOption = new Option<FileInfo>(
-                "--image", 
+                "--image",
                 "The input image file (JPG or PNG)");
-            
+
             var normalMapOption = new Option<FileInfo>(
-                "--normal-map", 
+                "--normal-map",
                 "The normal map image file (RGB values map to XYZ normal vector)");
-            
+
             var outputOption = new Option<FileInfo>(
-                "--output", 
+                "--output",
                 "The output image file path");
-            
+
             var lightDirOption = new Option<string>(
-                "--light-dir", 
-                "Light direction vector (format: x,y,z)") { IsRequired = true };
-            
+                "--light-dir",
+                "Light direction vector (format: x,y,z)")
+            { IsRequired = true };
+
             var lightColorOption = new Option<string>(
-                "--light-color", 
-                "Light color (format: r,g,b)") { IsRequired = true };
-            
+                "--light-color",
+                "Light color (format: r,g,b)")
+            { IsRequired = true };
+
+            var brightnessOption = new Option<float>(
+                "--brightness",
+                () => 1.0f,
+                "Light brightness (default: 1.0)");
+
             var intensityOption = new Option<float>(
-                "--intensity", 
-                () => 1.0f, 
-                "Light intensity (default: 1.0)");
-            
+                "--intensity",
+                () => 1.0f,
+                "Blend factor between original image (0.0) and lighting effect (1.0) (default: 1.0)");
+
             rootCommand.AddOption(imageOption);
             rootCommand.AddOption(normalMapOption);
             rootCommand.AddOption(outputOption);
             rootCommand.AddOption(lightDirOption);
             rootCommand.AddOption(lightColorOption);
+            rootCommand.AddOption(brightnessOption);
             rootCommand.AddOption(intensityOption);
-            
-            rootCommand.SetHandler((imageFile, normalMapFile, outputFile, lightDirStr, lightColorStr, intensity) =>
+
+            rootCommand.SetHandler((imageFile, normalMapFile, outputFile, lightDirStr, lightColorStr, brightness, intensity) =>
             {
-                try 
+                try
                 {
                     if (imageFile == null || !imageFile.Exists)
                     {
@@ -78,12 +86,15 @@ namespace ImageLighting
                     // Parse light color
                     var lightColor = ParseColor(lightColorStr);
 
-                    Console.WriteLine($"Processing image with light direction: {lightDir}, color: {lightColor}, intensity: {intensity}");
-                    
+                    // Clamp intensity between 0 and 1
+                    intensity = Math.Clamp(intensity, 0.0f, 1.0f);
+
+                    Console.WriteLine($"Processing image with light direction: {lightDir}, color: {lightColor}, brightness: {brightness}, intensity: {intensity}");
+
                     // Apply lighting
-                    ApplyLighting(imageFile.FullName, normalMapFile.FullName, outputFile.FullName, 
-                        lightDir, lightColor, intensity);
-                    
+                    ApplyLighting(imageFile.FullName, normalMapFile.FullName, outputFile.FullName,
+                        lightDir, lightColor, brightness, intensity);
+
                     Console.WriteLine($"Output saved to: {outputFile.FullName}");
                     Environment.Exit(0);
                 }
@@ -92,8 +103,8 @@ namespace ImageLighting
                     Console.WriteLine($"Error: {ex.Message}");
                     Environment.Exit(1);
                 }
-            }, imageOption, normalMapOption, outputOption, lightDirOption, lightColorOption, intensityOption);
-            
+            }, imageOption, normalMapOption, outputOption, lightDirOption, lightColorOption, brightnessOption, intensityOption);
+
             return rootCommand.Invoke(args);
         }
 
@@ -123,8 +134,8 @@ namespace ImageLighting
             return new Rgba32(r, g, b);
         }
 
-        private static void ApplyLighting(string imagePath, string normalMapPath, string outputPath, 
-            Vector3 lightDir, Rgba32 lightColor, float intensity)
+        private static void ApplyLighting(string imagePath, string normalMapPath, string outputPath,
+            Vector3 lightDir, Rgba32 lightColor, float brightness, float intensity)
         {
             // Load the source image and normal map
             using var image = Image.Load<Rgba32>(imagePath);
@@ -147,24 +158,24 @@ namespace ImageLighting
                     // Get original pixel and normal from normal map
                     var originalPixel = image[x, y];
                     var normalPixel = normalMap[x, y];
-                    
+
                     // Convert normal map RGB to actual vector (assuming standard normal map format)
                     // In normal maps, RGB = XYZ but need to be transformed from 0-255 to -1 to 1
                     var normal = new Vector3(
-                        normalPixel.R / 127.5f - 1.0f, 
+                        normalPixel.R / 127.5f - 1.0f,
                         normalPixel.G / 127.5f - 1.0f,
                         normalPixel.B / 127.5f - 1.0f
                     );
-                    
+
                     // Normalize to ensure it's a unit vector
                     normal = Vector3.Normalize(normal);
-                    
+
                     // Calculate light factor (dot product between normal and light direction)
                     float lightFactor = Vector3.Dot(normal, lightDir);
-                    
-                    // Ensure it's positive and scale by intensity
-                    lightFactor = Math.Max(0, lightFactor) * intensity;
-                    
+
+                    // Ensure it's positive and scale by brightness
+                    lightFactor = Math.Max(0, lightFactor) * brightness;
+
                     // Apply lighting to original pixel
                     Rgba32 litPixel = new Rgba32(
                         (byte)Math.Min(255, originalPixel.R * lightFactor * lightColor.R / 255),
@@ -172,8 +183,16 @@ namespace ImageLighting
                         (byte)Math.Min(255, originalPixel.B * lightFactor * lightColor.B / 255),
                         originalPixel.A // Keep original alpha
                     );
-                    
-                    output[x, y] = litPixel;
+
+                    // Blend between original and lit pixel based on intensity
+                    Rgba32 finalPixel = new Rgba32(
+                        (byte)Math.Round(originalPixel.R * (1 - intensity) + litPixel.R * intensity),
+                        (byte)Math.Round(originalPixel.G * (1 - intensity) + litPixel.G * intensity),
+                        (byte)Math.Round(originalPixel.B * (1 - intensity) + litPixel.B * intensity),
+                        originalPixel.A // Keep original alpha
+                    );
+
+                    output[x, y] = finalPixel;
                 }
             }
 
