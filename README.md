@@ -22,7 +22,7 @@ A command-line application for applying directional lighting effects to images u
 
 - Apply directional lighting to any JPG or PNG image
 - Use normal maps to achieve realistic lighting effects
-- Customize light direction, color, brightness, and blend intensity
+- Customize light direction, color, brightness, blend intensity, and lighting softness
 - Simple command-line interface
 
 ## Prerequisites
@@ -48,7 +48,7 @@ A command-line application for applying directional lighting effects to images u
 Run the application with the following command:
 
 ```sh
-dotnet run -- --image <path-to-image> --normal-map <path-to-normal-map> --output <path-to-output> --light-dir <x,y,z> --light-color <r,g,b> --brightness <value> --intensity <value>
+dotnet run -- --image <path-to-image> --normal-map <path-to-normal-map> --output <path-to-output> --light-dir <x,y,z> --light-color <r,g,b> --brightness <value> --intensity <value> --softness <value>
 ```
 
 ## Parameters
@@ -60,6 +60,7 @@ dotnet run -- --image <path-to-image> --normal-map <path-to-normal-map> --output
 - **--light-color:** Light color in RGB format r,g,b (e.g., 255,255,255)
 - **--brightness:** (Optional) Light brightness, default is 1.0
 - **--intensity:** (Optional) Blend factor between original image (0.0) and lighting effect (1.0), default is 1.0
+- **--softness:** (Optional) Controls how gradual the lighting transitions are, higher values create softer lighting, default is 0.0
 
 
 ## Example
@@ -70,10 +71,10 @@ Apply a white light coming from directly above:
 dotnet run -- --image sample.jpg --normal-map sample_normal.png --output output.jpg --light-dir 0,0,1 --light-color 255,255,255 --brightness 1.5 --intensity 1.0
 ```
 
-Apply a red light from the upper left with partial blending:
+Apply a red light from the upper left with partial blending and soft transitions:
 
 ```sh
-dotnet run -- --image sample.jpg --normal-map sample_normal.png --output output.jpg --light-dir -1,-1,0.5 --light-color 255,0,0 --brightness 2.0 --intensity 0.7
+dotnet run -- --image sample.jpg --normal-map sample_normal.png --output output.jpg --light-dir -1,-1,0.5 --light-color 255,0,0 --brightness 2.0 --intensity 0.7 --softness 0.3
 ```
 
 ## Normal Maps

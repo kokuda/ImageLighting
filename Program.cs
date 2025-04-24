@@ -48,6 +48,11 @@ namespace ImageLighting
                 () => 1.0f,
                 "Blend factor between original image (0.0) and lighting effect (1.0) (default: 1.0)");
 
+            var softnessOption = new Option<float>(
+                "--softness",
+                () => 0.0f,
+                "Softness of lighting transition (higher values create softer lighting) (default: 0.0)");
+
             rootCommand.AddOption(imageOption);
             rootCommand.AddOption(normalMapOption);
             rootCommand.AddOption(outputOption);
@@ -55,8 +60,9 @@ namespace ImageLighting
             rootCommand.AddOption(lightColorOption);
             rootCommand.AddOption(brightnessOption);
             rootCommand.AddOption(intensityOption);
+            rootCommand.AddOption(softnessOption);
 
-            rootCommand.SetHandler((imageFile, normalMapFile, outputFile, lightDirStr, lightColorStr, brightness, intensity) =>
+            rootCommand.SetHandler((imageFile, normalMapFile, outputFile, lightDirStr, lightColorStr, brightness, intensity, softness) =>
             {
                 try
                 {
@@ -89,11 +95,14 @@ namespace ImageLighting
                     // Clamp intensity between 0 and 1
                     intensity = Math.Clamp(intensity, 0.0f, 1.0f);
 
-                    Console.WriteLine($"Processing image with light direction: {lightDir}, color: {lightColor}, brightness: {brightness}, intensity: {intensity}");
+                    // Ensure softness is non-negative
+                    softness = Math.Max(0.0f, softness);
+
+                    Console.WriteLine($"Processing image with light direction: {lightDir}, color: {lightColor}, brightness: {brightness}, intensity: {intensity}, softness: {softness}");
 
                     // Apply lighting
                     ApplyLighting(imageFile.FullName, normalMapFile.FullName, outputFile.FullName,
-                        lightDir, lightColor, brightness, intensity);
+                        lightDir, lightColor, brightness, intensity, softness);
 
                     Console.WriteLine($"Output saved to: {outputFile.FullName}");
                     Environment.Exit(0);
@@ -103,7 +112,7 @@ namespace ImageLighting
                     Console.WriteLine($"Error: {ex.Message}");
                     Environment.Exit(1);
                 }
-            }, imageOption, normalMapOption, outputOption, lightDirOption, lightColorOption, brightnessOption, intensityOption);
+            }, imageOption, normalMapOption, outputOption, lightDirOption, lightColorOption, brightnessOption, intensityOption, softnessOption);
 
             return rootCommand.Invoke(args);
         }
@@ -135,7 +144,7 @@ namespace ImageLighting
         }
 
         private static void ApplyLighting(string imagePath, string normalMapPath, string outputPath,
-            Vector3 lightDir, Rgba32 lightColor, float brightness, float intensity)
+            Vector3 lightDir, Rgba32 lightColor, float brightness, float intensity, float softness)
         {
             // Load the source image and normal map
             using var image = Image.Load<Rgba32>(imagePath);
@@ -171,7 +180,12 @@ namespace ImageLighting
                     normal = Vector3.Normalize(normal);
 
                     // Calculate light factor (dot product between normal and light direction)
-                    float lightFactor = Vector3.Dot(normal, lightDir);
+                    float dotProduct = Vector3.Dot(normal, lightDir);
+
+                    // Apply softness factor:
+                    // 1. Add the softness value to dot product
+                    // 2. Scale by 1/(1+softness) to maintain the same overall range
+                    float lightFactor = (dotProduct + softness) / (1.0f + softness);
 
                     // Ensure it's positive and scale by brightness
                     lightFactor = Math.Max(0, lightFactor) * brightness;
