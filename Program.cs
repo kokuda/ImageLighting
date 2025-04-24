@@ -105,6 +105,17 @@ namespace ImageLighting
                 () => 0.0f,
                 "Light 3 softness of lighting transition (default: 0.0)");
 
+            // Ambient light - optional
+            var ambientColorOption = new Option<string>(
+                "--ambient-color",
+                () => "0,0,0",
+                "Ambient light color in RGB format r,g,b (default: 0,0,0)");
+
+            var ambientIntensityOption = new Option<float>(
+                "--ambient-intensity",
+                () => 0.0f,
+                "Ambient light intensity (default: 0.0)");
+
             // Global settings
             var intensityOption = new Option<float>(
                 "--intensity",
@@ -134,6 +145,10 @@ namespace ImageLighting
             rootCommand.AddOption(brightness3Option);
             rootCommand.AddOption(softness3Option);
 
+            // Ambient light
+            rootCommand.AddOption(ambientColorOption);
+            rootCommand.AddOption(ambientIntensityOption);
+
             // Global
             rootCommand.AddOption(intensityOption);
 
@@ -160,6 +175,10 @@ namespace ImageLighting
                 var light3Color = context.ParseResult.GetValueForOption(lightColor3Option);
                 var light3Brightness = context.ParseResult.GetValueForOption(brightness3Option);
                 var light3Softness = context.ParseResult.GetValueForOption(softness3Option);
+
+                // Get ambient light parameters
+                var ambientColorStr = context.ParseResult.GetValueForOption(ambientColorOption);
+                var ambientIntensity = context.ParseResult.GetValueForOption(ambientIntensityOption);
 
                 try
                 {
@@ -193,8 +212,12 @@ namespace ImageLighting
                         Environment.Exit(1);
                     }
 
-                    // Clamp intensity between 0 and 1
+                    // Clamp intensity values between 0 and 1
                     intensity = Math.Clamp(intensity, 0.0f, 1.0f);
+                    ambientIntensity = Math.Clamp(ambientIntensity, 0.0f, 1.0f);
+
+                    // Parse ambient color
+                    var ambientColor = ParseColor(ambientColorStr);
 
                     // Create lights list
                     var lights = new List<Light>();
@@ -226,12 +249,17 @@ namespace ImageLighting
                         Console.WriteLine($"Light 3: direction: {lightDir3}, color: {lightColor3}, brightness: {light3Brightness}, softness: {light3Softness}");
                     }
 
+                    if (ambientIntensity > 0)
+                    {
+                        Console.WriteLine($"Ambient light: color: {ambientColor}, intensity: {ambientIntensity}");
+                    }
+
                     Console.WriteLine($"Global intensity: {intensity}");
-                    Console.WriteLine($"Processing image with {lights.Count} light(s)...");
+                    Console.WriteLine($"Processing image with {lights.Count} directional light(s)...");
 
                     // Apply lighting
                     ApplyLighting(imageFile.FullName, normalMapFile.FullName, outputFile.FullName,
-                        lights, intensity);
+                        lights, ambientColor, ambientIntensity, intensity);
 
                     Console.WriteLine($"Output saved to: {outputFile.FullName}");
                     Environment.Exit(0);
@@ -279,7 +307,7 @@ namespace ImageLighting
         }
 
         private static void ApplyLighting(string imagePath, string normalMapPath, string outputPath,
-            List<Light> lights, float intensity)
+            List<Light> lights, Rgba32 ambientColor, float ambientIntensity, float intensity)
         {
             // Load the source image and normal map
             using var image = Image.Load<Rgba32>(imagePath);
@@ -315,9 +343,9 @@ namespace ImageLighting
                     normal = Vector3.Normalize(normal);
 
                     // Initialize accumulators for each color channel
-                    float redAccumulator = 0;
-                    float greenAccumulator = 0;
-                    float blueAccumulator = 0;
+                    float redAccumulator = ambientColor.R / 255.0f * ambientIntensity;
+                    float greenAccumulator = ambientColor.G / 255.0f * ambientIntensity;
+                    float blueAccumulator = ambientColor.B / 255.0f * ambientIntensity;
 
                     // Calculate contribution from each light
                     foreach (var light in lights)
