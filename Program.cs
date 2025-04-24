@@ -6,11 +6,29 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.Numerics;
+using System.Collections.Generic;
 
 namespace ImageLighting
 {
     class Program
     {
+        // Light class to store all light parameters
+        private class Light
+        {
+            public Vector3 Direction { get; set; }
+            public Rgba32 Color { get; set; }
+            public float Brightness { get; set; }
+            public float Softness { get; set; }
+
+            public Light(Vector3 direction, Rgba32 color, float brightness, float softness)
+            {
+                Direction = Vector3.Normalize(direction);
+                Color = color;
+                Brightness = brightness;
+                Softness = softness;
+            }
+        }
+
         static int Main(string[] args)
         {
             // Create command line arguments
@@ -28,42 +46,121 @@ namespace ImageLighting
                 "--output",
                 "The output image file path");
 
-            var lightDirOption = new Option<string>(
-                "--light-dir",
-                "Light direction vector (format: x,y,z)")
+            // Light 1 - required - with backwards compatibility options
+            var lightDir1Option = new Option<string>(
+                new[] { "--light-dir", "--light1-dir" },
+                "Light 1 direction vector (format: x,y,z)")
             { IsRequired = true };
 
-            var lightColorOption = new Option<string>(
-                "--light-color",
-                "Light color (format: r,g,b)")
+            var lightColor1Option = new Option<string>(
+                new[] { "--light-color", "--light1-color" },
+                "Light 1 color (format: r,g,b)")
             { IsRequired = true };
 
-            var brightnessOption = new Option<float>(
-                "--brightness",
+            var brightness1Option = new Option<float>(
+                new[] { "--brightness", "--light1-brightness" },
                 () => 1.0f,
-                "Light brightness (default: 1.0)");
+                "Light 1 brightness (default: 1.0)");
 
+            var softness1Option = new Option<float>(
+                new[] { "--softness", "--light1-softness" },
+                () => 0.0f,
+                "Light 1 softness of lighting transition (default: 0.0)");
+
+            // Light 2 - optional
+            var lightDir2Option = new Option<string>(
+                "--light2-dir",
+                "Light 2 direction vector (format: x,y,z)");
+
+            var lightColor2Option = new Option<string>(
+                "--light2-color",
+                "Light 2 color (format: r,g,b)");
+
+            var brightness2Option = new Option<float>(
+                "--light2-brightness",
+                () => 1.0f,
+                "Light 2 brightness (default: 1.0)");
+
+            var softness2Option = new Option<float>(
+                "--light2-softness",
+                () => 0.0f,
+                "Light 2 softness of lighting transition (default: 0.0)");
+
+            // Light 3 - optional
+            var lightDir3Option = new Option<string>(
+                "--light3-dir",
+                "Light 3 direction vector (format: x,y,z)");
+
+            var lightColor3Option = new Option<string>(
+                "--light3-color",
+                "Light 3 color (format: r,g,b)");
+
+            var brightness3Option = new Option<float>(
+                "--light3-brightness",
+                () => 1.0f,
+                "Light 3 brightness (default: 1.0)");
+
+            var softness3Option = new Option<float>(
+                "--light3-softness",
+                () => 0.0f,
+                "Light 3 softness of lighting transition (default: 0.0)");
+
+            // Global settings
             var intensityOption = new Option<float>(
                 "--intensity",
                 () => 1.0f,
                 "Blend factor between original image (0.0) and lighting effect (1.0) (default: 1.0)");
 
-            var softnessOption = new Option<float>(
-                "--softness",
-                () => 0.0f,
-                "Softness of lighting transition (higher values create softer lighting) (default: 0.0)");
-
+            // Add all options
             rootCommand.AddOption(imageOption);
             rootCommand.AddOption(normalMapOption);
             rootCommand.AddOption(outputOption);
-            rootCommand.AddOption(lightDirOption);
-            rootCommand.AddOption(lightColorOption);
-            rootCommand.AddOption(brightnessOption);
-            rootCommand.AddOption(intensityOption);
-            rootCommand.AddOption(softnessOption);
 
-            rootCommand.SetHandler((imageFile, normalMapFile, outputFile, lightDirStr, lightColorStr, brightness, intensity, softness) =>
+            // Light 1
+            rootCommand.AddOption(lightDir1Option);
+            rootCommand.AddOption(lightColor1Option);
+            rootCommand.AddOption(brightness1Option);
+            rootCommand.AddOption(softness1Option);
+
+            // Light 2
+            rootCommand.AddOption(lightDir2Option);
+            rootCommand.AddOption(lightColor2Option);
+            rootCommand.AddOption(brightness2Option);
+            rootCommand.AddOption(softness2Option);
+
+            // Light 3
+            rootCommand.AddOption(lightDir3Option);
+            rootCommand.AddOption(lightColor3Option);
+            rootCommand.AddOption(brightness3Option);
+            rootCommand.AddOption(softness3Option);
+
+            // Global
+            rootCommand.AddOption(intensityOption);
+
+            // SetHandler with grouped parameters to stay under the 8 parameter limit
+            rootCommand.SetHandler((context) =>
             {
+                // Get main parameters
+                var imageFile = context.ParseResult.GetValueForOption(imageOption);
+                var normalMapFile = context.ParseResult.GetValueForOption(normalMapOption);
+                var outputFile = context.ParseResult.GetValueForOption(outputOption);
+                var light1Dir = context.ParseResult.GetValueForOption(lightDir1Option);
+                var light1Color = context.ParseResult.GetValueForOption(lightColor1Option);
+                var light1Brightness = context.ParseResult.GetValueForOption(brightness1Option);
+                var light1Softness = context.ParseResult.GetValueForOption(softness1Option);
+                var intensity = context.ParseResult.GetValueForOption(intensityOption);
+
+                // Get optional light parameters
+                var light2Dir = context.ParseResult.GetValueForOption(lightDir2Option);
+                var light2Color = context.ParseResult.GetValueForOption(lightColor2Option);
+                var light2Brightness = context.ParseResult.GetValueForOption(brightness2Option);
+                var light2Softness = context.ParseResult.GetValueForOption(softness2Option);
+
+                var light3Dir = context.ParseResult.GetValueForOption(lightDir3Option);
+                var light3Color = context.ParseResult.GetValueForOption(lightColor3Option);
+                var light3Brightness = context.ParseResult.GetValueForOption(brightness3Option);
+                var light3Softness = context.ParseResult.GetValueForOption(softness3Option);
+
                 try
                 {
                     if (imageFile == null || !imageFile.Exists)
@@ -84,25 +181,57 @@ namespace ImageLighting
                         Environment.Exit(1);
                     }
 
-                    // Parse light direction
-                    var lightDir = ParseVector(lightDirStr);
-                    // Normalize the light direction
-                    lightDir = Vector3.Normalize(lightDir);
+                    if (string.IsNullOrEmpty(light1Dir))
+                    {
+                        Console.WriteLine("Light direction is required.");
+                        Environment.Exit(1);
+                    }
 
-                    // Parse light color
-                    var lightColor = ParseColor(lightColorStr);
+                    if (string.IsNullOrEmpty(light1Color))
+                    {
+                        Console.WriteLine("Light color is required.");
+                        Environment.Exit(1);
+                    }
 
                     // Clamp intensity between 0 and 1
                     intensity = Math.Clamp(intensity, 0.0f, 1.0f);
 
-                    // Ensure softness is non-negative
-                    softness = Math.Max(0.0f, softness);
+                    // Create lights list
+                    var lights = new List<Light>();
 
-                    Console.WriteLine($"Processing image with light direction: {lightDir}, color: {lightColor}, brightness: {brightness}, intensity: {intensity}, softness: {softness}");
+                    // Add Light 1 (required)
+                    var lightDir1 = ParseVector(light1Dir);
+                    var lightColor1 = ParseColor(light1Color);
+                    light1Softness = Math.Max(0.0f, light1Softness);
+                    lights.Add(new Light(lightDir1, lightColor1, light1Brightness, light1Softness));
+                    Console.WriteLine($"Light 1: direction: {lightDir1}, color: {lightColor1}, brightness: {light1Brightness}, softness: {light1Softness}");
+
+                    // Add Light 2 if specified
+                    if (!string.IsNullOrEmpty(light2Dir) && !string.IsNullOrEmpty(light2Color))
+                    {
+                        var lightDir2 = ParseVector(light2Dir);
+                        var lightColor2 = ParseColor(light2Color);
+                        light2Softness = Math.Max(0.0f, light2Softness);
+                        lights.Add(new Light(lightDir2, lightColor2, light2Brightness, light2Softness));
+                        Console.WriteLine($"Light 2: direction: {lightDir2}, color: {lightColor2}, brightness: {light2Brightness}, softness: {light2Softness}");
+                    }
+
+                    // Add Light 3 if specified
+                    if (!string.IsNullOrEmpty(light3Dir) && !string.IsNullOrEmpty(light3Color))
+                    {
+                        var lightDir3 = ParseVector(light3Dir);
+                        var lightColor3 = ParseColor(light3Color);
+                        light3Softness = Math.Max(0.0f, light3Softness);
+                        lights.Add(new Light(lightDir3, lightColor3, light3Brightness, light3Softness));
+                        Console.WriteLine($"Light 3: direction: {lightDir3}, color: {lightColor3}, brightness: {light3Brightness}, softness: {light3Softness}");
+                    }
+
+                    Console.WriteLine($"Global intensity: {intensity}");
+                    Console.WriteLine($"Processing image with {lights.Count} light(s)...");
 
                     // Apply lighting
                     ApplyLighting(imageFile.FullName, normalMapFile.FullName, outputFile.FullName,
-                        lightDir, lightColor, brightness, intensity, softness);
+                        lights, intensity);
 
                     Console.WriteLine($"Output saved to: {outputFile.FullName}");
                     Environment.Exit(0);
@@ -112,13 +241,16 @@ namespace ImageLighting
                     Console.WriteLine($"Error: {ex.Message}");
                     Environment.Exit(1);
                 }
-            }, imageOption, normalMapOption, outputOption, lightDirOption, lightColorOption, brightnessOption, intensityOption, softnessOption);
+            });
 
             return rootCommand.Invoke(args);
         }
 
         private static Vector3 ParseVector(string vectorStr)
         {
+            if (string.IsNullOrEmpty(vectorStr))
+                throw new ArgumentException("Light direction cannot be null or empty");
+
             var parts = vectorStr.Split(',');
             if (parts.Length != 3)
                 throw new ArgumentException("Light direction must be in format: x,y,z");
@@ -132,6 +264,9 @@ namespace ImageLighting
 
         private static Rgba32 ParseColor(string colorStr)
         {
+            if (string.IsNullOrEmpty(colorStr))
+                throw new ArgumentException("Light color cannot be null or empty");
+
             var parts = colorStr.Split(',');
             if (parts.Length != 3)
                 throw new ArgumentException("Light color must be in format: r,g,b");
@@ -144,7 +279,7 @@ namespace ImageLighting
         }
 
         private static void ApplyLighting(string imagePath, string normalMapPath, string outputPath,
-            Vector3 lightDir, Rgba32 lightColor, float brightness, float intensity, float softness)
+            List<Light> lights, float intensity)
         {
             // Load the source image and normal map
             using var image = Image.Load<Rgba32>(imagePath);
@@ -179,22 +314,34 @@ namespace ImageLighting
                     // Normalize to ensure it's a unit vector
                     normal = Vector3.Normalize(normal);
 
-                    // Calculate light factor (dot product between normal and light direction)
-                    float dotProduct = Vector3.Dot(normal, lightDir);
+                    // Initialize accumulators for each color channel
+                    float redAccumulator = 0;
+                    float greenAccumulator = 0;
+                    float blueAccumulator = 0;
 
-                    // Apply softness factor:
-                    // 1. Add the softness value to dot product
-                    // 2. Scale by 1/(1+softness) to maintain the same overall range
-                    float lightFactor = (dotProduct + softness) / (1.0f + softness);
+                    // Calculate contribution from each light
+                    foreach (var light in lights)
+                    {
+                        // Calculate light factor (dot product between normal and light direction)
+                        float dotProduct = Vector3.Dot(normal, light.Direction);
 
-                    // Ensure it's positive and scale by brightness
-                    lightFactor = Math.Max(0, lightFactor) * brightness;
+                        // Apply softness factor
+                        float lightFactor = (dotProduct + light.Softness) / (1.0f + light.Softness);
 
-                    // Apply lighting to original pixel
+                        // Ensure it's positive and scale by brightness
+                        lightFactor = Math.Max(0, lightFactor) * light.Brightness;
+
+                        // Add this light's contribution
+                        redAccumulator += lightFactor * light.Color.R / 255.0f;
+                        greenAccumulator += lightFactor * light.Color.G / 255.0f;
+                        blueAccumulator += lightFactor * light.Color.B / 255.0f;
+                    }
+
+                    // Apply lighting to original pixel, capping at 255
                     Rgba32 litPixel = new Rgba32(
-                        (byte)Math.Min(255, originalPixel.R * lightFactor * lightColor.R / 255),
-                        (byte)Math.Min(255, originalPixel.G * lightFactor * lightColor.G / 255),
-                        (byte)Math.Min(255, originalPixel.B * lightFactor * lightColor.B / 255),
+                        (byte)Math.Min(255, originalPixel.R * redAccumulator),
+                        (byte)Math.Min(255, originalPixel.G * greenAccumulator),
+                        (byte)Math.Min(255, originalPixel.B * blueAccumulator),
                         originalPixel.A // Keep original alpha
                     );
 
